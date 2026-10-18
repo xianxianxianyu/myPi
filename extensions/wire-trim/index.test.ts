@@ -48,6 +48,14 @@ test("keepLast = 0 时全删", () => {
   assert.equal(result.savedChars, 12);
 });
 
+test("reasoning_text 字段名也认（pi-ai 白名单里的第三个）", () => {
+  const input = payload([{ role: "assistant", content: "a", reasoning_text: "t".repeat(11) }, assistant("b", "c".repeat(9))]);
+  const result = trimReasoningContent(input, 1);
+  assert.ok(result);
+  assert.equal(result.trimmedMessages, 1);
+  assert.equal(result.savedChars, 11);
+});
+
 test("reasoning 字段名也认（部分兼容网关）", () => {
   const input = payload([{ role: "assistant", content: "a", reasoning: "r".repeat(9) }, assistant("b", "c".repeat(9))]);
   const result = trimReasoningContent(input, 1);
@@ -73,4 +81,9 @@ test("只对命中模型的 chat-completions 动手", () => {
   assert.equal(shouldTrim({ ...policy, enabled: false }, { id: "deepseek-flash", api: "openai-completions" }), false);
   // 未知模型 / 未命中
   assert.equal(shouldTrim(policy, undefined), false);
+  // models 与 providers 是「或」：模型名不匹配时，provider 名匹配也算
+  assert.equal(shouldTrim({ ...policy, models: ["nomatch"], providers: ["forwd"] }, { id: "x", provider: "forwd", api: "openai-completions" }), true);
+  assert.equal(shouldTrim({ ...policy, models: ["deepseek"], providers: ["nomatch"] }, { id: "deepseek-flash", api: "openai-completions" }), true);
+  // 两个都空 = 什么都不做
+  assert.equal(shouldTrim({ ...policy, models: [], providers: [] }, { id: "deepseek-flash", api: "openai-completions" }), false);
 });

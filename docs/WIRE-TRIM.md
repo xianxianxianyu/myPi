@@ -62,13 +62,19 @@ if (nextParams !== undefined) params = nextParams;   // 返回值直接替换
 
 ## 命中条件
 
-三道闸，全过才动手：
+**这些是护栏，不是"什么时候才起作用"的开关。** 每个请求都会过一遍，过不了就是"不动"。
 
-| 闸 | 条件 | 为什么 |
-|---|---|---|
-| 协议 | `model.api === "openai-completions"` | Anthropic / Responses 的重放是硬要求（signature / 加密推理），碰了会报错或丢连续性 |
-| 模型 | 模型 id 含 `deepseek`（可配） | 别的模型可能真的靠回放 cot 维持连续性 |
-| 内容 | 消息里确实有非空 `reasoning_content` / `reasoning` | 没东西可删就原样放行 |
+| 闸 | 条件 | 不过时 | 为什么 |
+|---|---|---|---|
+| ① 协议 | `model.api === "openai-completions"` | 原样放行 | Anthropic 的 thinking 带 signature 校验、Responses 用 `encrypted_content` 维持跨轮推理，删了会报错或丢连续性 |
+| ② 模型 | 模型 id 含 `deepseek`，**或** provider 名命中（两者是「或」，可配） | 原样放行 | **有实测证据**：zai 的 glm-5.3-flash 会把输入的 `reasoning_content` **计入**（22 → 24022 token），DeepSeek 不计（40 → 40）。删 zai 的 cot 是真的改动它的 prompt，不能碰 |
+| ③ 内容 | 消息里确实有非空 reasoning 字段 | 原样放行 | 没东西可删 |
+
+三个字段名都认：`reasoning_content` / `reasoning` / `reasoning_text`
+（抄 pi-ai 自己的白名单 `OPENAI_COMPLETIONS_REASONING_FIELDS`，它写哪个我们就删哪个）。
+
+**多轮不是条件。** 第一个请求里只有 1 条 cot，而 `keepLast: 1` 要留一条，所以看起来"没动"；
+一旦进入第二轮，第 1 条的 cot 就成了历史，立刻被删。
 
 ## 配置
 

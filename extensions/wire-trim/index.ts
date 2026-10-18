@@ -26,8 +26,13 @@ import { getAgentDir, type ExtensionAPI } from "@earendil-works/pi-coding-agent"
 
 const CONFIG_FILE = join(getAgentDir(), "wire-trim.json");
 
-/** 只对这些字段名下手。不同兼容网关叫法不同，但都在 chat-completions 形状里。 */
-const REASONING_FIELDS = ["reasoning_content", "reasoning"] as const;
+/**
+ * 只对这些字段名下手。
+ *
+ * 抄的是 pi-ai 自己的白名单 `OPENAI_COMPLETIONS_REASONING_FIELDS`（api/openai-completions.js:138）
+ * —— 它认哪几个，pi 就可能写哪几个，少一个就漏一种网关。
+ */
+const REASONING_FIELDS = ["reasoning_content", "reasoning", "reasoning_text"] as const;
 
 export interface WirePolicy {
   /** 关掉就完全不碰 payload。 */
@@ -127,9 +132,8 @@ export function shouldTrim(
     const lower = haystack.toLowerCase();
     return needles.some((needle) => needle.length > 0 && lower.includes(needle.toLowerCase()));
   };
-  if (policy.models.length > 0) return matches(model?.id, policy.models);
-  if (policy.providers.length > 0) return matches(model?.provider, policy.providers);
-  return false;
+  // 模型名或 provider 名命中任一即可。两者都空 = 不命中（不做任何事）
+  return matches(model?.id, policy.models) || matches(model?.provider, policy.providers);
 }
 
 /**
