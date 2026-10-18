@@ -134,7 +134,7 @@ GLM 那行不是"不能"，是"代价性质不同"：
 | 字段 | 默认 | 说明 |
 |---|---|---|
 | `enabled` | `true` | 关掉就完全不碰 payload |
-| `models` | `["deepseek"]` | 模型 id 包含任一字符串即命中（大小写不敏感）；空数组则按 `providers` 判断 |
+| `models` | `["deepseek", "glm"]` | 模型 id 包含任一字符串即命中（大小写不敏感）。`models` 与 `providers` 是「或」 |
 | `providers` | `[]` | provider id 包含任一字符串；`models` 非空时不用它 |
 | `keepLast` | `1` | 保留最后 N 条 cot。留 1 条是为了将来换 Anthropic 时行为不用改 |
 | `notifyAboveChars` | `200000` | 每 session 第一次省下超过这个字符数时提示一次；`0` = 不提示 |

@@ -15,6 +15,16 @@ pi install /Users/moyu/Desktop/project/myPi
 
 配置在 `~/.pi/agent/wire-trim.json`，看效果用 `/wire`。
 
+默认覆盖的两个模型族，性质不同但都可以删：
+
+| 模型 | provider 怎么处理输入 cot | 删掉省什么 |
+|---|---|---|
+| `deepseek`（官方 / forwd） | 分词前丢弃 | 只有带宽 |
+| `glm`（zai） | 真的读进上下文 | 带宽 + 真 token + prefill（实测 96,022 → 22 tok，2.56s → 0.90s） |
+
+实测 GLM 删掉历史 cot 后，需要记住前几步结果的 4 步工具任务仍然正确
+（`A×100+B×10+C = 124`）。
+
 ## 为什么只有这一个
 
 pi 会把每条历史 assistant 的 thinking 全文塞回 `reasoning_content` 重发，
