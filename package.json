@@ -1,0 +1,27 @@
+{
+  "name": "mypi",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "myPi — 我自己的 pi 定制。目前只有一个东西：出站 payload 精简（历史 cot 不再上传）",
+  "keywords": [
+    "pi-package"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/wire-trim/index.ts"
+    ]
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.check.json",
+    "test": "node --import tsx --test 'extensions/**/*.test.ts'",
+    "check": "npm run typecheck && npm test"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
