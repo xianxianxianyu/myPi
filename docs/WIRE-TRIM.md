@@ -67,7 +67,7 @@ if (nextParams !== undefined) params = nextParams;   // 返回值直接替换
 | 闸 | 条件 | 不过时 | 为什么 |
 |---|---|---|---|
 | ① 协议 | `model.api === "openai-completions"` | 原样放行 | Anthropic 的 thinking 带 signature 校验、Responses 用 `encrypted_content` 维持跨轮推理，删了会报错或丢连续性 |
-| ② 模型 | 模型 id 含 `deepseek`，**或** provider 名命中（两者是「或」，可配） | 原样放行 | **有实测证据**：zai 的 glm-5.3-flash 会把输入的 `reasoning_content` **计入**（22 → 24022 token），DeepSeek 不计（40 → 40）。删 zai 的 cot 是真的改动它的 prompt，不能碰 |
+| ② 模型 | 模型 id 含 `deepseek`，**或** provider 名命中（两者是「或」，可配） | 原样放行 | 默认只放已验证的模型。**这一层不是"技术上不行"，是"默认值放保守"** —— 见下节「哪些模型能删」 |
 | ③ 内容 | 消息里确实有非空 reasoning 字段 | 原样放行 | 没东西可删 |
 
 三个字段名都认：`reasoning_content` / `reasoning` / `reasoning_text`
@@ -75,6 +75,45 @@ if (nextParams !== undefined) params = nextParams;   // 返回值直接替换
 
 **多轮不是条件。** 第一个请求里只有 1 条 cot，而 `keepLast: 1` 要留一条，所以看起来"没动"；
 一旦进入第二轮，第 1 条的 cot 就成了历史，立刻被删。
+
+## 哪些模型能删（实测，别猜）
+
+同一个测试：4.8 万字符塞进历史 `reasoning_content`，看 `prompt_tokens` 变不变。
+
+| provider / 模型 | 输入 cot 计入 prompt？ | 删掉它的性质 | 默认 |
+|---|---|---|---|
+| DeepSeek 官方 | ❌ 40 → **40** | **no-op**：provider 反正丢掉，删了不改变模型看到的任何东西 | ✅ 开 |
+| forwd / deepseek-flash | ❌ 40 → **40** | 同上 | ✅ 开 |
+| zai / glm-5.3-flash | ✅ 22 → **24,022** | **真实改动**：模型真的读过它。但删掉后照样跑通，省的是真 token 和真时间 | ⬜ 默认关，可加 |
+
+GLM 那行不是"不能"，是"代价性质不同"：
+
+| | DeepSeek | GLM |
+|---|---|---|
+| 删掉省什么 | 只有带宽（3.6MB → 17–23s 的那部分） | 带宽 **+ 真 token**（96,022 → 22）**+ prefill 时间**（2.56s → 0.90s） |
+| 语义风险 | 零（provider 本来就不看） | 有：模型少了一段它本来能读到的推理 |
+| 实测表现 | — | 4 次工具调用的多步任务跑通；trim 确实生效（`stripped=1 saved=1401/1673`） |
+
+**GLM 上收益更大**（它是真计费、真占上下文），所以想开的话值得开。
+唯一的顾虑是"模型会不会靠上一轮的推理维持连贯"，行业惯例是**不重放**（Claude Code、Codex 都不重放），
+实测也没有异常。要开就在配置里加：
+
+```json
+{ "models": ["deepseek", "glm"] }
+```
+
+### 新增 provider 怎么判断
+
+改一行配置之前，先用一次最小请求看它认不认：
+
+```text
+基线        ：messages = [user, assistant("ok"), user]                          → prompt_tokens = A
+带 cot      ：messages = [user, assistant("ok", reasoning_content=4.8万字符), user] → prompt_tokens = B
+对照        ：messages = [user(文本+4.8万字符), assistant("ok"), user]           → prompt_tokens = C
+```
+
+- `B == A` 且 `C >> A` → provider 丢弃输入 cot → **no-op，放心删**
+- `B ≈ C` → provider 真的读 → **删是策略选择**，先小范围试
 
 ## 配置
 
