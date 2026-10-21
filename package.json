@@ -1,9 +1,9 @@
 {
-  "name": "mypi",
+  "name": "mypi-wire-trim",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "type": "module",
-  "description": "myPi — 我自己的 pi 定制。目前只有一个东西：出站 payload 精简（历史 cot 不再上传）",
+  "description": "pi extension: stop re-uploading historical chain-of-thought. Trims reasoning fields from the outbound payload.",
   "keywords": [
     "pi-package"
   ],
@@ -21,7 +21,19 @@
     "@earendil-works/pi-coding-agent": "*"
   },
   "devDependencies": {
+    "@types/node": "^26.6.5",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
-  }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xianxianxianyu/myPi-wire-trim.git"
+  },
+  "files": [
+    "extensions",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ]
 }

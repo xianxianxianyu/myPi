@@ -1,46 +1,75 @@
-# myPi
+# wire-trim
 
-我自己的 pi 定制。**只有一个插件**：出站 payload 精简。
+pi 扩展：**历史推理不再上传。**
 
+挂在 `before_provider_request` 上，在请求发出前删掉历史 assistant 消息里的 reasoning 字段，
+只保留最后 `keepLast` 条。不碰 session 文件、不碰 UI、不改消息顺序。
+
+```json
+{"role": "assistant", "content": "…", "reasoning_content": "这一轮 thinking 全文"}
 ```
-extensions/wire-trim/   历史 cot 不再上传（挂在 before_provider_request 接缝）
-docs/WIRE-TRIM.md       发现的坑、验证数据、配置、边界
-```
+
+---
+
+## 先读这个：能不能删，取决于请求形态
+
+历史推理在请求体里有三种身份，删掉的后果完全不同：
+
+| 范式 | 代表 | 删掉的后果 |
+|---|---|---|
+| **可丢弃** | 无 `tools` 的 DeepSeek / 兼容网关 | 无事发生，纯省传输 |
+| **必须重放** | DeepSeek + `tools`；Anthropic `thinking` | 丢连续性，或 `400` |
+| **不透明凭证** | Responses `encrypted_content`；Gemini `thought_signature` | 校验失败 / 能力静默退化 |
+
+本插件只做一件事：**按模型名命中后删字段**。它不判断请求是否带 `tools`，
+也不区分你的 gateway 属于哪种范式 —— 那是配置和自测的责任，见
+[三种范式](docs/paradigms.md) 与 [实验方法](docs/experiments.md)。
+
+默认只覆盖 `deepseek`，且是在**本机网关实测为"可丢弃"**之后才放开的。
+换网关、换模型、加上新的工具循环，都请重跑一次三行实验再开。
+
+## 数字
+
+400K 量级会话每轮多传约 **1.9 MB**；60 万字符 cot（3.6 MB 请求体）把网关从 1.7 s 拖到 **17–23 s**，
+而 `prompt_tokens` 与 `cache_hit` 都不变。省的是传输，不是上下文。
 
 ## 装入
 
 ```bash
-pi install /Users/moyu/Desktop/project/myPi
+pi install /path/to/myPi-wire-trim
 ```
 
-配置在 `~/.pi/agent/wire-trim.json`，看效果用 `/wire`。
+配置在 `~/.pi/agent/wire-trim.json`：
 
-默认覆盖的两个模型族，性质不同但都可以删：
+```json
+{ "enabled": true, "models": ["deepseek"], "keepLast": 1, "notifyAboveChars": 200000 }
+```
 
-| 模型 | provider 怎么处理输入 cot | 删掉省什么 |
-|---|---|---|
-| `deepseek`（官方 / forwd） | 分词前丢弃 | 只有带宽 |
-| `glm`（zai） | 真的读进上下文 | 带宽 + 真 token + prefill（实测 96,022 → 22 tok，2.56s → 0.90s） |
+看效果用 `/wire`：开关状态、命中模型、当前模型会不会被精简、最近一次删了几条 / 少传多少 MB。
 
-实测 GLM 删掉历史 cot 后，需要记住前几步结果的 4 步工具任务仍然正确
-（`A×100+B×10+C = 124`）。
+## 文档
 
-## 为什么只有这一个
+| 文档 | 回答什么 |
+|---|---|
+| [docs/wire-trim.md](docs/wire-trim.md) | 插件的实测数据、三个闸、配置、边界、已知风险 |
+| [docs/paradigms.md](docs/paradigms.md) | 三种范式怎么分、哪一行最容易翻车 |
+| [docs/experiments.md](docs/experiments.md) | 三行最小实验、判据、本机数据 |
+| [docs/payload.md](docs/payload.md) | 为什么下手点是 payload 层，代价是什么 |
+| [docs/cache.md](docs/cache.md) | 删字段会不会伤缓存命中率 |
 
-pi 会把每条历史 assistant 的 thinking 全文塞回 `reasoning_content` 重发，
-而 DeepSeek 系在分词前就把它丢掉了 —— 不计 token、不占上下文、不破缓存，**只占传输**。
-400K 量级的会话每次请求因此多传约 1.9MB，实测网关处理大请求体很慢（3.6MB → 17–23s）。
+## 边界
 
-删掉它，请求体少一半左右，零语义风险。细节见 [docs/WIRE-TRIM.md](docs/WIRE-TRIM.md)。
-
-## 不做什么
-
-- 不改 pi 的消息模型、不碰 session 文件、不碰 UI
-- 不做上下文清理 / 阈值 / 外置（实测慢主要来自字节量，而 pi 自己的压缩已经把体量框住了）
-- 不 vendor、不 fork 上游插件
+- 只删字段：不重排消息、不删消息、不碰 system 与 tools
+- 不碰 session 文件：会话记录里 thinking 原文都在，UI 里照常可见
+- 不做上下文清理 / 外置 / 压缩
+- 上游一旦提供 compat 声明（例如 `discardsInputReasoning: true`），本插件即应删除
 
 ## 开发
 
 ```bash
-npm run check   # typecheck + 8 个单元测试
+npm run check   # typecheck + 单元测试
 ```
+
+## License
+
+MIT
